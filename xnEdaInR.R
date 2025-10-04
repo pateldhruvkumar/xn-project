@@ -1,0 +1,157 @@
+# =========================
+# ALY6080 - Experimental Learning
+# =========================
+# Requires: readxl, dplyr, tidyr
+# Install if needed:
+# install.packages(c("readxl","dplyr","tidyr","ggplot2", "scales"))
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+
+# ---- 1) Loading data ----
+# File path for the dataset
+filePath <- "D:/Projects/xn-project/dataset/FY19_to_FY23_Cleaned.xlsx"
+
+df <- readxl::read_excel(filePath, sheet = 1)
+
+# WorkedDate parsing
+if ("Worked Date" %in% names(df)) {
+  library(lubridate)  # install.packages("lubridate") if needed
+  
+  df[["Worked Date"]] <- suppressWarnings(
+    parse_date_time(df[["Worked Date"]],
+                    orders = c("ymd", "mdy", "d-b-Y", "d-B-Y", "d/m/Y", "m/d/Y"))
+  )
+}
+
+# Ensure numeric columns are numeric
+numCols <- intersect(c("Billable Hours","Billed Hours","Hourly Billing Rate",
+                       "Extended Price","Amount Billed"), names(df))
+df[numCols] <- lapply(df[numCols], function(x) suppressWarnings(as.numeric(x)))
+
+# Replace NAs in numeric columns with 0
+df[numCols] <- lapply(df[numCols], tidyr::replace_na, replace = 0)
+
+# ---- 2) Core derived features ----
+dfFeat <- df %>%
+  mutate(
+    # 2.1 Billing efficiency
+    billingEfficiencyPct = ifelse(`Billable Hours` > 0,
+                                  100 * (`Billed Hours` / `Billable Hours`), NA_real_),
+    
+    # 2.2 Realized revenue per billed hour
+    revenuePerBilledHour = ifelse(`Billed Hours` > 0,
+                                  `Amount Billed` / `Billed Hours`, NA_real_),
+    
+    # 2.3 Realized revenue per billable hour
+    revenuePerBillableHour = ifelse(`Billable Hours` > 0,
+                                    `Amount Billed` / `Billable Hours`, NA_real_),
+    
+    # 2.4 Effective rate vs. List rate
+    effectiveRateVsListPct = ifelse(`Hourly Billing Rate` > 0,
+                                    100 * (revenuePerBilledHour / `Hourly Billing Rate`), NA_real_),
+    
+    # 2.5 Discount / write-off
+    differenceExtRev = `Extended Price` - `Amount Billed`,
+    discountPct    = ifelse(`Extended Price` > 0,
+                            100 * (differenceExtRev / `Extended Price`), NA_real_)
+  )
+
+# ---- 3) Calculating new features ----
+byClientFy <- dfFeat %>%
+  group_by(clientName = .data$Client_Name, fiscalYear = .data$Fiscal_Year) %>%
+  summarise(
+    projects          = n_distinct(.data$`Project Name`),
+    totalBillableHr   = sum(.data$`Billable Hours`, na.rm = TRUE),
+    totalBilledHr     = sum(.data$`Billed Hours`,   na.rm = TRUE),
+    revenue           = sum(.data$`Amount Billed`,  na.rm = TRUE),
+    extPrice          = sum(.data$`Extended Price`, na.rm = TRUE),
+    avgListRate       = ifelse(sum(.data$`Billed Hours`, na.rm = TRUE) > 0,
+                               sum(.data$`Hourly Billing Rate` * .data$`Billed Hours`, na.rm = TRUE) /
+                                 sum(.data$`Billed Hours`, na.rm = TRUE),
+                               NA_real_),
+    billingEfficiencyPct = ifelse(totalBillableHr > 0,
+                                  100 * (totalBilledHr / totalBillableHr), NA_real_),
+    effectiveRateVsListPct = ifelse(avgListRate > 0,
+                                    100 * ((revenue / pmax(totalBilledHr, 1e-9)) / avgListRate), NA_real_),
+    
+    differenceExtRev  = ifelse(revenue == 0, 0, extPrice - revenue),
+    differenceExtRevPercentage = ifelse(revenue == 0, 0,
+                                        ifelse(extPrice > 0, 100 * ((extPrice - revenue) / extPrice), NA_real_))
+  ) %>%
+  mutate(
+    avgListRate = tidyr::replace_na(avgListRate, 0),
+    billingEfficiencyPct = tidyr::replace_na(billingEfficiencyPct, 0),
+    effectiveRateVsListPct = tidyr::replace_na(effectiveRateVsListPct, 0)
+  ) %>%
+  arrange(desc(revenue)) %>%
+  ungroup()
+
+byClientFy
+
+# ---- 4) Visualization ----
+
+# 4.1 Number of Projects by Fiscal Year
+ggplot(byClientFy, aes(x = fiscalYear, y = projects)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Number of Projects by Fiscal Year",
+       x = "Fiscal Year",
+       y = "Number of Projects") +
+  theme_minimal()
+
+# 4.2 Billing Efficiency (< 95%) vs Client Name (excluding 0)
+ggplot(
+  byClientFy %>% 
+    filter(!is.na(billingEfficiencyPct), billingEfficiencyPct < 95, billingEfficiencyPct > 0),
+  aes(x = billingEfficiencyPct, y = reorder(clientName, billingEfficiencyPct))
+) +
+  geom_col(fill = "skyblue") +
+  labs(
+    title = "Billing Efficiency (0 < % < 95) vs Client Name",
+    x = "Billing Efficiency (%)",
+    y = "Client Name"
+  ) +
+  scale_x_continuous(limits = c(0, 100)) +
+  theme_minimal()
+
+
+# 4.3 Discount % (>0) vs Client Name by Fiscal Year
+byClientFy %>%
+  filter(!is.na(differenceExtRevPercentage), differenceExtRevPercentage > 0) %>%
+  ggplot(aes(x = differenceExtRevPercentage, y = reorder(clientName, differenceExtRevPercentage))) +
+  geom_col(fill = "skyblue") +
+  facet_wrap(~ fiscalYear, scales = "free_y") +
+  labs(
+    title = "Discount % (>0) vs Client Name by Fiscal Year",
+    x = "Percentage Difference between Extened and Revenue Price (%)",
+    y = "Client Name"
+  ) +
+  theme_minimal()
+
+# 4.4 Number of Projects by Fiscal Year
+
+# Plot with y-axis forced 0–100
+ggplot(byClientFy, aes(x = fiscalYear, y = differenceExtRevPercentage)) +
+  geom_col(fill = "skyblue") +
+  labs(
+    title = "Difference (Extended vs Revenue) by Fiscal Year",
+    x = "Fiscal Year",
+    y = "Percentage Difference"
+  ) +
+  scale_y_continuous(limits = c(0, 100)) +
+  theme_minimal()
+
+ggplot(byClientFy, aes(x = revenue, y = reorder(clientName, revenue))) +
+  geom_col(fill = "darkorange") +
+  labs(
+    title = "Clients by Revenue",
+    x = "Revenue (in K)",
+    y = "Client Name"
+  ) +
+  scale_x_continuous(
+    labels = label_number(scale = 1e-3, suffix = "K") # display in K
+  ) +
+  theme_minimal()
