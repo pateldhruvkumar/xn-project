@@ -1,19 +1,20 @@
 # =========================
 # ALY6080 - Experimental Learning
 # =========================
-# Requires: pandas, openpyxl, matplotlib, seaborn
+# Requires: pandas, openpyxl, matplotlib, seaborn, yellowbrick
 # Install if needed:
-# pip install pandas openpyxl matplotlib seaborn
+# pip install pandas openpyxl matplotlib seaborn yellowbrick
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
+from yellowbrick.features import PCA
+from yellowbrick.target import FeatureCorrelation
+import numpy as np
 
 # ---- 1) Loading data ----
-# File path for the dataset
 file_path = "D:/Projects/xn-project/dataset/FY19_to_FY23_Cleaned.xlsx"
-
 df = pd.read_excel(file_path, sheet_name=0)
 
 # WorkedDate parsing
@@ -27,7 +28,6 @@ num_cols = [col for col in ["Billable Hours", "Billed Hours", "Hourly Billing Ra
 for col in num_cols:
     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-# Replace NAs in numeric columns with 0
 df[num_cols] = df[num_cols].fillna(0)
 
 # ---- 2) Core derived features ----
@@ -67,7 +67,6 @@ by_client_fy = df.groupby(['Client_Name', 'Fiscal_Year']).agg(
     extPrice=('Extended Price', 'sum')
 ).reset_index()
 
-# Calculate weighted average list rate
 weighted_rates = df.groupby(['Client_Name', 'Fiscal_Year']).apply(
     lambda x: (x['Hourly Billing Rate'] * x['Billed Hours']).sum() / x['Billed Hours'].sum() 
     if x['Billed Hours'].sum() > 0 else 0
@@ -75,7 +74,6 @@ weighted_rates = df.groupby(['Client_Name', 'Fiscal_Year']).apply(
 
 by_client_fy = by_client_fy.merge(weighted_rates, on=['Client_Name', 'Fiscal_Year'])
 
-# Calculate additional metrics
 by_client_fy['billingEfficiencyPct'] = by_client_fy.apply(
     lambda row: 100 * (row['totalBilledHr'] / row['totalBillableHr']) 
     if row['totalBillableHr'] > 0 else 0, axis=1
@@ -95,15 +93,12 @@ by_client_fy['differenceExtRevPercentage'] = by_client_fy.apply(
     (100 * ((row['extPrice'] - row['revenue']) / row['extPrice']) if row['extPrice'] > 0 else None), axis=1
 )
 
-# Fill NAs
 by_client_fy['avgListRate'] = by_client_fy['avgListRate'].fillna(0)
 by_client_fy['billingEfficiencyPct'] = by_client_fy['billingEfficiencyPct'].fillna(0)
 by_client_fy['effectiveRateVsListPct'] = by_client_fy['effectiveRateVsListPct'].fillna(0)
 
-# Sort by revenue descending
 by_client_fy = by_client_fy.sort_values('revenue', ascending=False)
 
-# Rename columns for easier access
 by_client_fy.columns = ['clientName', 'fiscalYear', 'projects', 'totalBillableHr', 
                         'totalBilledHr', 'revenue', 'extPrice', 'avgListRate', 
                         'billingEfficiencyPct', 'effectiveRateVsListPct', 
@@ -111,31 +106,46 @@ by_client_fy.columns = ['clientName', 'fiscalYear', 'projects', 'totalBillableHr
 
 print(by_client_fy)
 
-# ---- 4) Visualization ----
+# ---- 4) Visualization with Yellowbrick Style ----
+
+# Set Yellowbrick style
+plt.style.use('seaborn-v0_8-darkgrid')
 
 # 4.1 Number of Projects by Fiscal Year
 projects_by_fy = by_client_fy.groupby('fiscalYear')['projects'].sum().reset_index()
-plt.figure(figsize=(10, 6))
-plt.bar(projects_by_fy['fiscalYear'], projects_by_fy['projects'], color='skyblue')
-plt.title('Number of Projects by Fiscal Year')
-plt.xlabel('Fiscal Year')
-plt.ylabel('Number of Projects')
+fig, ax = plt.subplots(figsize=(10, 6))
+bars = ax.bar(projects_by_fy['fiscalYear'], projects_by_fy['projects'], 
+              color='#2ecc71', edgecolor='#27ae60', linewidth=1.5)
+ax.set_title('Number of Projects by Fiscal Year', fontsize=16, fontweight='bold')
+ax.set_xlabel('Fiscal Year', fontsize=12)
+ax.set_ylabel('Number of Projects', fontsize=12)
+ax.grid(axis='y', alpha=0.3)
+for bar in bars:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height,
+            f'{int(height)}', ha='center', va='bottom', fontsize=10)
 plt.tight_layout()
 plt.show()
 
-# 4.2 Billing Efficiency (< 95%) vs Client Name (excluding 0)
+# 4.2 Billing Efficiency (< 95%) vs Client Name
 filtered_data = by_client_fy[
     (by_client_fy['billingEfficiencyPct'].notna()) & 
     (by_client_fy['billingEfficiencyPct'] < 95) & 
     (by_client_fy['billingEfficiencyPct'] > 0)
 ].sort_values('billingEfficiencyPct')
 
-plt.figure(figsize=(10, 8))
-plt.barh(filtered_data['clientName'], filtered_data['billingEfficiencyPct'], color='skyblue')
-plt.title('Billing Efficiency (0 < % < 95) vs Client Name')
-plt.xlabel('Billing Efficiency (%)')
-plt.ylabel('Client Name')
-plt.xlim(0, 100)
+fig, ax = plt.subplots(figsize=(10, 8))
+colors = plt.cm.RdYlGn(filtered_data['billingEfficiencyPct'] / 100)
+bars = ax.barh(filtered_data['clientName'], filtered_data['billingEfficiencyPct'], 
+               color=colors, edgecolor='black', linewidth=0.5)
+ax.set_title('Billing Efficiency (0 < % < 95) vs Client Name', 
+             fontsize=16, fontweight='bold')
+ax.set_xlabel('Billing Efficiency (%)', fontsize=12)
+ax.set_ylabel('Client Name', fontsize=12)
+ax.set_xlim(0, 100)
+ax.axvline(x=80, color='red', linestyle='--', alpha=0.5, label='80% threshold')
+ax.legend()
+ax.grid(axis='x', alpha=0.3)
 plt.tight_layout()
 plt.show()
 
@@ -147,13 +157,23 @@ filtered_data_high = by_client_fy[
     (by_client_fy['fiscalYear'] == 'FY22')
 ].sort_values('billingEfficiencyPct')
 
-plt.figure(figsize=(10, 8))
-plt.barh(filtered_data_high['clientName'], filtered_data_high['billingEfficiencyPct'], color='skyblue')
-plt.title('Billing Efficiency (100 < % < 600) vs Client Name')
-plt.xlabel('Billing Efficiency (%)')
-plt.ylabel('Client Name')
-plt.tight_layout()
-plt.show()
+if len(filtered_data_high) > 0:
+    fig, ax = plt.subplots(figsize=(10, 8))
+    colors = plt.cm.YlOrRd(
+        (filtered_data_high['billingEfficiencyPct'] - 100) / 500
+    )
+    bars = ax.barh(filtered_data_high['clientName'], 
+                   filtered_data_high['billingEfficiencyPct'], 
+                   color=colors, edgecolor='black', linewidth=0.5)
+    ax.set_title('Billing Efficiency (100 < % < 600) vs Client Name - FY22', 
+                 fontsize=16, fontweight='bold')
+    ax.set_xlabel('Billing Efficiency (%)', fontsize=12)
+    ax.set_ylabel('Client Name', fontsize=12)
+    ax.axvline(x=100, color='red', linestyle='--', alpha=0.5, label='100% baseline')
+    ax.legend()
+    ax.grid(axis='x', alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 # 4.4 Discount % (>0) vs Client Name by Fiscal Year
 filtered_discount = by_client_fy[
@@ -161,40 +181,74 @@ filtered_discount = by_client_fy[
     (by_client_fy['differenceExtRevPercentage'] > 0)
 ]
 
-fiscal_years = filtered_discount['fiscalYear'].unique()
-fig, axes = plt.subplots(len(fiscal_years), 1, figsize=(12, 6 * len(fiscal_years)))
+fiscal_years = sorted(filtered_discount['fiscalYear'].unique())
+fig, axes = plt.subplots(len(fiscal_years), 1, 
+                         figsize=(12, 6 * len(fiscal_years)))
 
 if len(fiscal_years) == 1:
     axes = [axes]
 
 for idx, fy in enumerate(fiscal_years):
-    fy_data = filtered_discount[filtered_discount['fiscalYear'] == fy].sort_values('differenceExtRevPercentage')
-    axes[idx].barh(fy_data['clientName'], fy_data['differenceExtRevPercentage'], color='skyblue')
-    axes[idx].set_title(f'Difference % (>0) vs Client Name - {fy}')
-    axes[idx].set_xlabel('Percentage Difference between Extended and Revenue Price (%)')
-    axes[idx].set_ylabel('Client Name')
+    fy_data = filtered_discount[filtered_discount['fiscalYear'] == fy].sort_values(
+        'differenceExtRevPercentage'
+    )
+    colors = plt.cm.Reds(fy_data['differenceExtRevPercentage'] / 100)
+    axes[idx].barh(fy_data['clientName'], fy_data['differenceExtRevPercentage'], 
+                   color=colors, edgecolor='black', linewidth=0.5)
+    axes[idx].set_title(f'Discount % (>0) vs Client Name - {fy}', 
+                       fontsize=14, fontweight='bold')
+    axes[idx].set_xlabel('Percentage Difference between Extended and Revenue Price (%)', 
+                        fontsize=11)
+    axes[idx].set_ylabel('Client Name', fontsize=11)
+    axes[idx].grid(axis='x', alpha=0.3)
 
 plt.tight_layout()
 plt.show()
 
 # 4.5 Difference by Fiscal Year
 diff_by_fy = by_client_fy.groupby('fiscalYear')['differenceExtRevPercentage'].mean().reset_index()
-plt.figure(figsize=(10, 6))
-plt.bar(diff_by_fy['fiscalYear'], diff_by_fy['differenceExtRevPercentage'], color='skyblue')
-plt.title('Difference (Extended vs Revenue) by Fiscal Year')
-plt.xlabel('Fiscal Year')
-plt.ylabel('Percentage Difference')
-plt.ylim(0, 100)
+fig, ax = plt.subplots(figsize=(10, 6))
+bars = ax.bar(diff_by_fy['fiscalYear'], diff_by_fy['differenceExtRevPercentage'], 
+              color='#e74c3c', edgecolor='#c0392b', linewidth=1.5)
+ax.set_title('Average Discount (Extended vs Revenue) by Fiscal Year', 
+             fontsize=16, fontweight='bold')
+ax.set_xlabel('Fiscal Year', fontsize=12)
+ax.set_ylabel('Average Percentage Difference', fontsize=12)
+ax.set_ylim(0, max(diff_by_fy['differenceExtRevPercentage']) * 1.1)
+ax.grid(axis='y', alpha=0.3)
+for bar in bars:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height,
+            f'{height:.1f}%', ha='center', va='bottom', fontsize=10)
 plt.tight_layout()
 plt.show()
 
 # 4.6 Client Vs Revenue
 by_client_fy_sorted = by_client_fy.sort_values('revenue')
-plt.figure(figsize=(10, 12))
-plt.barh(by_client_fy_sorted['clientName'], by_client_fy_sorted['revenue'] / 1000, color='darkorange')
-plt.title('Clients by Revenue')
-plt.xlabel('Revenue (in K)')
-plt.ylabel('Client Name')
+fig, ax = plt.subplots(figsize=(10, 12))
+revenue_normalized = by_client_fy_sorted['revenue'] / by_client_fy_sorted['revenue'].max()
+colors = plt.cm.plasma(revenue_normalized)
+bars = ax.barh(by_client_fy_sorted['clientName'], 
+               by_client_fy_sorted['revenue'] / 1000, 
+               color=colors, edgecolor='black', linewidth=0.5)
+ax.set_title('Clients by Revenue', fontsize=16, fontweight='bold')
+ax.set_xlabel('Revenue (in K)', fontsize=12)
+ax.set_ylabel('Client Name', fontsize=12)
+ax.grid(axis='x', alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+# BONUS: Yellowbrick-specific visualizations for feature analysis
+# Feature Correlation with Revenue
+numeric_features = by_client_fy[['projects', 'totalBillableHr', 'totalBilledHr', 
+                                  'billingEfficiencyPct', 'effectiveRateVsListPct', 
+                                  'differenceExtRevPercentage']].fillna(0)
+target = by_client_fy['revenue'].fillna(0)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+visualizer = FeatureCorrelation(labels=numeric_features.columns, ax=ax)
+visualizer.fit(numeric_features, target)
+visualizer.finalize()
 plt.tight_layout()
 plt.show()
 
