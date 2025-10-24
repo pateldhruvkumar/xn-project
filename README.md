@@ -4,8 +4,11 @@ Python and R scripts for cleaning timesheet/billing data, computing client- and 
 
 ### Overview
 - Cleans the raw Excel export and derives a canonical dataset
-- Computes metrics like billing efficiency, realized rates, discounts, and project counts
-- Produces plots in Python (matplotlib/seaborn) and R (ggplot2)
+- Computes metrics like billing efficiency, realized rates, differences (extended vs revenue), and project counts
+- Produces comprehensive visualizations in Python (matplotlib/seaborn/Yellowbrick) with consistent green color theming
+- Generates 15+ independent graphs for fiscal year comparisons and client-level analysis
+- Performs text mining and NLP on project summary notes
+- Provides R-based analytics as an alternative implementation
 
 ### Repository structure
 ```text
@@ -69,7 +72,9 @@ Notes:
 
 2) Run the Python analyses and plots
 ```powershell
-python xn.py       # Aggregated metrics + multiple charts (incl. Yellowbrick visuals)
+python xn.py       # Generates 15+ visualizations including correlation matrix, 
+                   # fiscal year comparisons, billing efficiency analysis, 
+                   # and top client revenue charts
 ```
 
 3) Run NLP (Python)
@@ -87,11 +92,6 @@ Rscript nlp.R
 - `xn.py`, `xnEdaInR.R`, `nlp.py`, and `nlp.R` currently reference an absolute path like `D:/Projects/xn-project/dataset/FY19_to_FY23_Cleaned.xlsx`.
   - For portability, change these to the relative path `dataset/FY19_to_FY23_Cleaned.xlsx` (recommended), or keep the absolute path if it matches your machine.
 
-### Outputs
-- Console summaries of grouped metrics
-- Multiple charts: projects by FY, billing efficiency distributions, discount percentages, client revenue bars, etc.
-- NLP outputs: token frequency bars, TF‑IDF top terms, Yellowbrick K‑Elbow/Silhouette/t‑SNE visuals, LDA topic term bar charts, nearest neighbors via GloVe (if embeddings present)
-
 ### Troubleshooting
 - File not found: verify the cleaned file exists and paths are correct (see File path configuration above).
 - Excel engine errors: ensure `openpyxl` is installed for `.xlsx` IO.
@@ -100,7 +100,16 @@ Rscript nlp.R
 - GloVe embeddings: place `glove.6B.50d.txt` under `data/` or skip the embeddings section; the scripts will warn if missing.
 - qgrid import errors: it is optional; the EDA will proceed without it.
 
+### Visualization Features
+- **Consistent Color Theme**: All graphs (except correlation matrix) use green color gradients
+- **Independent Graphs**: Each fiscal year's billing efficiency and difference analysis displayed in separate windows
+- **Interactive Viewing**: Graphs appear sequentially, allowing detailed examination of each visualization
+- **Highlight Key Metrics**: Important fiscal years (FY20, FY21, FY22, FY23) highlighted in dark green vs light green for others
+- **Comprehensive Metrics**: 7 distinct visualization types covering project counts, correlations, efficiency, differences, and revenue
+
 ### Notes
 - Scripts reference academic context (ALY6080). Adjust for production use as needed.
+- All visualizations use a professional green color scheme for consistency and clarity
+- Graph outputs include threshold lines and baseline references for contextual analysis
 
 

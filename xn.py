@@ -114,8 +114,15 @@ plt.style.use('seaborn-v0_8-darkgrid')
 # 4.1 Number of Projects by Fiscal Year
 projects_by_fy = by_client_fy.groupby('fiscalYear')['projects'].sum().reset_index()
 fig, ax = plt.subplots(figsize=(10, 6))
+
+# Define colors: dark green for FY21 and FY23, light green for others
+colors = ['#a8e6cf' if fy not in ['FY21',"FY22", 'FY23'] else '#2ecc71' 
+          for fy in projects_by_fy['fiscalYear']]
+edge_colors = ['#8fd9bf' if fy not in ['FY21', "FY22", 'FY23'] else '#27ae60' 
+               for fy in projects_by_fy['fiscalYear']]
+
 bars = ax.bar(projects_by_fy['fiscalYear'], projects_by_fy['projects'], 
-              color='#2ecc71', edgecolor='#27ae60', linewidth=1.5)
+              color=colors, edgecolor=edge_colors, linewidth=1.5)
 ax.set_title('Number of Projects by Fiscal Year', fontsize=16, fontweight='bold')
 ax.set_xlabel('Fiscal Year', fontsize=12)
 ax.set_ylabel('Number of Projects', fontsize=12)
@@ -158,7 +165,7 @@ for fy in fiscal_years:
     
     if len(fy_data) > 0:
         fig, ax = plt.subplots(figsize=(10, 8))
-        colors = plt.cm.RdYlGn(fy_data['billingEfficiencyPct'] / 100)
+        colors = plt.cm.Greens(fy_data['billingEfficiencyPct'] / 100)
         bars = ax.barh(fy_data['clientName'], fy_data['billingEfficiencyPct'], 
                    color=colors, edgecolor='black', linewidth=0.2)
         ax.set_title(f'Billing Efficiency (0 < % < 95) vs Client Name - {fy}', 
@@ -166,7 +173,7 @@ for fy in fiscal_years:
         ax.set_xlabel('Billing Efficiency (%)', fontsize=12)
         ax.set_ylabel('Client Name', fontsize=12)
         ax.set_xlim(0, 100)
-        ax.axvline(x=80, color='red', linestyle='--', alpha=0.5, label='80% threshold')
+        ax.axvline(x=80, color='#27ae60', linestyle='--', alpha=0.5, label='80% threshold')
         ax.legend()
         ax.grid(axis='x', alpha=0.3)
         plt.tight_layout()
@@ -182,7 +189,7 @@ filtered_data_high = by_client_fy[
 
 if len(filtered_data_high) > 0:
     fig, ax = plt.subplots(figsize=(10, 8))
-    colors = plt.cm.YlOrRd(
+    colors = plt.cm.Greens(
         (filtered_data_high['billingEfficiencyPct'] - 100) / 500
     )
     bars = ax.barh(filtered_data_high['clientName'], 
@@ -192,7 +199,7 @@ if len(filtered_data_high) > 0:
                  fontsize=16, fontweight='bold')
     ax.set_xlabel('Billing Efficiency (%)', fontsize=12)
     ax.set_ylabel('Client Name', fontsize=12)
-    ax.axvline(x=100, color='red', linestyle='--', alpha=0.5, label='100% baseline')
+    ax.axvline(x=100, color='#27ae60', linestyle='--', alpha=0.5, label='100% baseline')
     ax.legend()
     ax.grid(axis='x', alpha=0.3)
     plt.tight_layout()
@@ -213,7 +220,7 @@ for fy in fiscal_years:
     
     if len(fy_data) > 0:
         fig, ax = plt.subplots(figsize=(10, 8))
-        colors = plt.cm.Reds(fy_data['differenceExtRevPercentage'] / 100)
+        colors = plt.cm.Greens(fy_data['differenceExtRevPercentage'] / 100)
         ax.barh(fy_data['clientName'], fy_data['differenceExtRevPercentage'], 
                        color=colors, edgecolor='black', linewidth=0.2)
         ax.set_title(f'Difference % (>0) vs Client Name - {fy}', 
@@ -228,8 +235,15 @@ for fy in fiscal_years:
 # 4.6 Difference by Fiscal Year
 diff_by_fy = by_client_fy.groupby('fiscalYear')['differenceExtRevPercentage'].mean().reset_index()
 fig, ax = plt.subplots(figsize=(10, 6))
+
+# Define colors: dark green for FY20, light green for others
+colors = ['#2ecc71' if fy == 'FY20' else '#a8e6cf' 
+          for fy in diff_by_fy['fiscalYear']]
+edge_colors = ['#27ae60' if fy == 'FY20' else '#8fd9bf' 
+               for fy in diff_by_fy['fiscalYear']]
+
 bars = ax.bar(diff_by_fy['fiscalYear'], diff_by_fy['differenceExtRevPercentage'], 
-              color='#e74c3c', edgecolor='#c0392b', linewidth=1.5)
+              color=colors, edgecolor=edge_colors, linewidth=1.5)
 ax.set_title('Average Difference (Extended vs Revenue) by Fiscal Year', 
              fontsize=16, fontweight='bold')
 ax.set_xlabel('Fiscal Year', fontsize=12)
@@ -247,7 +261,7 @@ plt.show()
 by_client_fy_sorted = by_client_fy.sort_values('revenue', ascending=False).head(20).sort_values('revenue')
 fig, ax = plt.subplots(figsize=(10, 12))
 revenue_normalized = by_client_fy_sorted['revenue'] / by_client_fy_sorted['revenue'].max()
-colors = plt.cm.plasma(revenue_normalized)
+colors = plt.cm.Greens(0.3 + 0.7 * revenue_normalized)  # Range from light to dark green
 bars = ax.barh(by_client_fy_sorted['clientName'], 
                by_client_fy_sorted['revenue'] / 1000, 
                color=colors, edgecolor='black', linewidth=0.5)
