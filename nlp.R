@@ -1,7 +1,3 @@
-#............... ALY 6040 - Module 5; Text Mining & NLP .........................
-
-#............... Arash Shamseddini, PhD, MSc .........................
-
 ###############################################
 ## Text Mining in R
 ## Dataset: FY19_to_FY23_Cleaned.xlsx (Summary Notes column)
@@ -126,17 +122,17 @@ cat("\nNearest neighbors (pre-trained GloVe 50d):\n")
 print(cosine_sim(emb, "email", 5))
 
 # -------------------------
-# 6) TOPIC MODELING (LDA, k = 3)
+# 6) TOPIC MODELING (LDA, k = 4)
 # -------------------------
 dtm <- bow %>% tidytext::cast_dtm(document = doc_id, term = word, value = n)
 as.matrix(dtm[1:2, 1:3]) # preview a subset of dtm
 
 set.seed(42)
-lda <- topicmodels::LDA(dtm, k = 3, control = list(seed = 42))
+lda <- topicmodels::LDA(dtm, k = 4, control = list(seed = 42))
 
 terms_per_topic <- broom::tidy(lda, matrix = "beta") %>%
   group_by(topic) %>%
-  slice_max(beta, n = 6) %>%
+  slice_max(beta, n = 8) %>%
   arrange(topic, desc(beta)) %>%
   ungroup()
 
@@ -153,7 +149,7 @@ ggplot(
   tidytext::scale_x_reordered() +
   facet_wrap(~ topic, scales = "free_y") +
   labs(
-    title = "Top words per topic (LDA)",
+    title = "Top words per topic (LDA) Latent Dirichlet Allocation",
     x = NULL,
     y = expression(beta ~ "=" ~ P(word ~ "|" ~ topic))
   ) +
