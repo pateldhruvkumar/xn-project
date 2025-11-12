@@ -13,7 +13,7 @@ library(scales)
 
 # ---- 1) Loading data ----
 # File path for the dataset
-filePath <- "D:/Projects/xn-project/dataset/FY19_to_FY23_Cleaned.xlsx"
+filePath <- "D:/Projects/xn-project/dataset/FY19_to_FY25_Final.xlsx"
 
 df <- readxl::read_excel(filePath, sheet = 1)
 
@@ -64,7 +64,7 @@ dfFeat <- df %>%
 byClientFy <- dfFeat %>%
   group_by(clientName = .data$Client_Name, fiscalYear = .data$Fiscal_Year) %>%
   summarise(
-    projects          = n_distinct(.data$`Project Name`),
+    projects          = sum(!is.na(.data$`Project Name`)),
     totalBillableHr   = sum(.data$`Billable Hours`, na.rm = TRUE),
     totalBilledHr     = sum(.data$`Billed Hours`,   na.rm = TRUE),
     revenue           = sum(.data$`Amount Billed`,  na.rm = TRUE),
@@ -103,19 +103,57 @@ ggplot(byClientFy, aes(x = fiscalYear, y = projects)) +
   theme_minimal()
 
 # 4.2 Billing Efficiency (< 95%) vs Client Name (excluding 0)
-ggplot(
-  byClientFy %>% 
-    filter(!is.na(billingEfficiencyPct), billingEfficiencyPct < 95, billingEfficiencyPct > 0),
-  aes(x = billingEfficiencyPct, y = reorder(clientName, billingEfficiencyPct))
-) +
-  geom_col(fill = "skyblue") +
-  labs(
-    title = "Billing Efficiency (0 < % < 95) vs Client Name",
-    x = "Billing Efficiency (%)",
-    y = "Client Name"
+# Get sorted fiscal years
+fiscal_years <- sort(unique(byClientFy$fiscalYear))
+
+# Loop through each fiscal year
+for (fy in fiscal_years) {
+  p <- ggplot(
+    byClientFy %>% 
+      filter(!is.na(billingEfficiencyPct), 
+             billingEfficiencyPct < 95, 
+             billingEfficiencyPct > 0,
+             fiscalYear == fy) %>%
+      arrange(billingEfficiencyPct),
+    aes(x = billingEfficiencyPct, 
+        y = reorder(clientName, billingEfficiencyPct),
+        fill = billingEfficiencyPct)
   ) +
-  scale_x_continuous(limits = c(0, 100)) +
-  theme_minimal()
+    geom_col(color = "black", linewidth = 0.2) +
+    scale_fill_gradient2(low = "red", 
+                         mid = "yellow", 
+                         high = "lightgreen",
+                         midpoint = 50,
+                         limits = c(0, 100),
+                         name = "Efficiency (%)") +
+    geom_vline(xintercept = 80, 
+               color = "red", 
+               linetype = "dashed", 
+               alpha = 0.5,
+               linewidth = 1) +
+    labs(
+      title = paste0("Billing Efficiency (0 < % < 95) vs Client Name - ", fy),
+      x = "Billing Efficiency (%)",
+      y = "Client Name"
+    ) +
+    scale_x_continuous(limits = c(0, 100), expand = c(0, 0)) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 10),
+      axis.text.x = element_text(size = 10),
+      axis.title = element_text(size = 12),
+      panel.grid.major.y = element_blank(),
+      panel.grid.minor.x = element_blank()
+    ) +
+    annotate("text", x = 82, y = 1, 
+             label = "80% threshold", 
+             color = "red", 
+             hjust = 0, 
+             size = 3.5)
+  
+  print(p)
+}
 
 
 # 4.3 Discount % (>0) vs Client Name by Fiscal Year

@@ -128,11 +128,11 @@ dtm <- bow %>% tidytext::cast_dtm(document = doc_id, term = word, value = n)
 as.matrix(dtm[1:2, 1:3]) # preview a subset of dtm
 
 set.seed(42)
-lda <- topicmodels::LDA(dtm, k = 4, control = list(seed = 42))
+lda <- topicmodels::LDA(dtm, k = 5, control = list(seed = 42))
 
 terms_per_topic <- broom::tidy(lda, matrix = "beta") %>%
   group_by(topic) %>%
-  slice_max(beta, n = 8) %>%
+  slice_max(beta, n = 9) %>%
   arrange(topic, desc(beta)) %>%
   ungroup()
 

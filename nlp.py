@@ -53,7 +53,7 @@ print("✓ All packages loaded successfully\n")
 # -------------------------
 # Update this path for your environment
 # For Kaggle: file_path = "/kaggle/input/your-dataset/FY19_to_FY23_Cleaned.xlsx"
-file_path = "D:/Projects/xn-project/dataset/FY19_to_FY23_Cleaned.xlsx"
+file_path = "D:/Projects/xn-project/dataset/FY19_to_FY25_Final.xlsx"
 raw_df = pd.read_excel(file_path)
 
 # Create document dataframe
@@ -343,26 +343,8 @@ plt.title(f"Silhouette Plot for K-Means Clustering (k={optimal_k})", fontsize=14
 plt.tight_layout()
 plt.show()
 
-# Document clustering with t-SNE visualization
-print("\nVisualizing document clusters using t-SNE...")
-from yellowbrick.text import TSNEVisualizer
-
-fig, ax = plt.subplots(figsize=(12, 8))
-tsne = TSNEVisualizer(
-    ax=ax,
-    random_state=42,
-    colormap='viridis'
-)
-tsne.fit(tfidf_matrix.toarray(), docs['doc_id'])
-tsne.finalize()
-plt.title("t-SNE Visualization of Document Similarity", fontsize=14, pad=20)
-plt.tight_layout()
-plt.show()
-
-print("=" * 70 + "\n")
-
 # -------------------------
-# 7) TOPIC MODELING (LDA, k = 3)
+# 7) TOPIC MODELING (LDA, k = 7)
 # -------------------------
 print("=" * 70)
 print("TOPIC MODELING WITH LDA")
@@ -377,7 +359,7 @@ print("Sample of DTM (first 2 docs, first 5 terms):")
 print(dtm[:2, :5].toarray())
 
 # Fit LDA model
-n_topics = 4
+n_topics = 7
 print(f"\nFitting LDA model with {n_topics} topics...")
 
 lda_model = LatentDirichletAllocation(
